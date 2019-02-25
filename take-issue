@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Requires jq.
 
+# Set up some default values for the script.
+
 # ISSUE_NUM: The reference number of this issue on the github issue tracker.
 ISSUE_NUM=${1}
 REMOTE_NAME="origin"
@@ -12,6 +14,60 @@ PROJECT=${PWD##*/}
 # USER: The github user name you've configured for this repository. Defaults to
 #       the global configuration if there isn't a local one.
 USER=$(git config user.name)
+
+# Parse Command Line Flags
+PARAMS=""
+
+function show_usage(){
+    echo "usage: take-issue [--user <USER>] [--password <PWD>] [--access-token <TOKEN>]"
+    echo "                  [--remote <REMOTE_NAME>] [--project <PROJECT>] [--help] <issue>"
+    echo ""
+    echo "Options & Parameters"
+    echo "--user <USER>                 The user to assign this issue to. This defaults to 'git config user.name'."
+    echo "--password <PWD>              The password associated with the user."
+    echo "--access-token <TOKEN>        A Github access token. If this is given, password is ignored."
+    echo "--remote <REMOTE_NAME>        The remote name, as present in your local git repository ('git remote')."
+    echo "--project <PROJECT_NAME>      The name of the project to pick an issue for. This defaults to the current folder name."
+    echo "-h, --help                    Show this help."
+}
+
+while (( "$#" )) ; do
+    case ${1} in
+    -u|--user)
+        USER=${2}
+        ;;
+    -p|--password)
+        PWD=${2}
+        shift # past argument
+        ;;
+    -a|--access-token)
+        ACCESS_TOKEN=${2}
+        ;;
+    -r|--remote)
+        REMOTE_NAME=${2}
+        ;;
+    -p|--project)
+        PROJECT=${2}
+        ;;
+    --) # done parsing args
+        shift
+        break
+        ;;
+    -h|--help)
+        show_usage
+        exit 0
+        ;;
+    *) # unknown option
+        PARAMS="$PARAMS $1"
+        shift
+        ;;
+    esac
+done
+
+# set positional arguments in their proper place
+eval set -- "$PARAMS"
+
+
 
 
 # Sanitize input if necessary, stripping a prepended '#' symbol if present.
