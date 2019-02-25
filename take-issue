@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Requires jq.
+
+# ISSUE_NUM: The reference number of this issue on the github issue tracker.
+ISSUE_NUM=${1}
+REMOTE_NAME="origin"
+
+# PROJECT: The project's name, as determined by the current folder name. We
+#          expect you to be in the repository's root when running this script.
+PROJECT=${PWD##*/}
+
+# USER: The github user name you've configured for this repository. Defaults to
+#       the global configuration if there isn't a local one.
+USER=$(git config user.name)
+
+
+# Sanitize input if necessary, stripping a prepended '#' symbol if present.
+function beginswith() { case $2 in "$1"*) true;; *) false;; esac; }
+
+if beginswith ${ISSUE_NUM} "#" ; then
+    ISSUE_NUM=${ISSUE_NUM:1}
+fi
+
+function get_upstream() {
+    # Extract the upstream repository's name on github. Other hosting methods are
+    # currently not supported. The returned string is of format <owner>/<repo_name>
+    url=$(git config --get remote.${REMOTE_NAME}.url)
+    github_path=$(curl -s "https://api.github.com/repos/${USER}/${PROJECT}" | jq -r '.source.full_name')
+    echo ${github_path}
+}
+
+UPSTREAM=$(get_upstream)
+
+# Construct the base API V3 path to the issue.
+UPSTREAM_API_URL="http://api.github.com/repos/${UPSTREAM}"
+
+
+echo "Assigning User ${USER} to issue #${ISSUE_NUM} via request PATCH ${UPSTREAM_API_URL}/issues/${ISSUE_NUM}..."
+STATUS_CODE=$(curl --request PATCH ${UPSTREAM_API_URL}/issues/${ISSUE_NUM} \
+        -H "Content-Type: application/json" \
+        --data '{\"assignees\": [\"${USER}\"]}' \
+        --write-out %{http_code} --silent --output /dev/null
+        )
+
+if [[ ${STATUS_CODE} > 299 ]]; then
+    echo "Could not assign issue #${ISSUE_NUM} to user '${USER}'! Aborting.."
+    exit 1
+fi
+
+echo "Issue assigned successfully. Checking out branch 'issue-#${ISSUE_NUM}'.."
+
+# Set up a new branch for this issue, if it does not exist already. We check this
+# by first trying to checkout the branch; if this operation fails, we assume it
+# does not exist and try to create it.
+git co issue-#${ISSUE_NUM}
+
+# TODO: This may not work for some corner cases, check possible return codes of 'git co'!
+if [[ ${?} == 1 ]] ; then
+    echo "No branch for issue #${ISSUE_NUM} present, creating.."
+    git checkout -b issue-#${ISSUE_NUM}
+fi
