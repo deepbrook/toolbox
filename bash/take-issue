@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Assign a github issue to your user name and checkout a local branch for it.
+#
 # Requires jq.
 
 # Set up some default values for the script.
@@ -143,7 +145,7 @@ fi
 
 # Send the PATCH request to the Github API (V3) via HTTP. The given issue is
 # assigned to ${USER}. Note that this *replaces* any other assignees.
-#
+#Classes, algorithms, patterns which I find useful
 # We check that the request was successful, using the HTTP response code. According
 # to the API documentation, this should be a 201.
 #
