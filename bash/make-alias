@@ -7,29 +7,54 @@
 ALIAS=$1
 VALUE=$2
 
+function show_usage(){
+    echo "usage: make-alias <alias> <command>"
+    echo ""
+    echo "Options & Parameters"
+    echo "alias                         The alias to store the command under."
+    echo "command                       The command to store under the alias."
+    echo "-h, --help                    Show this help."
+}
+
+while (( "$#" )) ; do
+    case ${1} in
+    --) # done parsing args
+        shift
+        break
+        ;;
+    -h|--help)
+        show_usage
+        exit 0
+        ;;
+    *) # unknown option
+        PARAMS="$PARAMS $1"
+        shift
+        ;;
+    esac
+done
+
+# set positional arguments in their proper place
+eval set -- "$PARAMS"
+
 function fetch_bash_rc(){
     config_rc="${HOME}/.config/bashrc"
     home_rc="${HOME}/.bashrc"
-
-    ls ${config_rc}
-    if [[ $? == 0 ]] ; then
+    if [ -f ${config_rc} ]; then
         echo ${config_rc}
         exit 0
     fi
 
-    ls ${home_rc}
-    if [[ $? == 0 ]] ; then
+    if [ -f ${home_rc} ]; then
         echo ${home_rc}
         exit 0
     fi
     exit 1
-
 }
 
 function alias_is_unique() {
     alias=$1
     rc_path=$2
-    cat ${rc_path} | grep "${alias}="
+    result=$(cat ${rc_path} | grep "${alias}=")
     if [[ $? == 1 ]]; then
         echo true
     else
@@ -44,9 +69,8 @@ if [[ $? == 1 ]]; then
 fi
 
 IS_UNIQUE=$(alias_is_unique ${ALIAS} ${RC_PATH})
-
-if IS_UNIQUE; then
+if ${IS_UNIQUE}; then
     echo "${ALIAS}=${VALUE}" >> ${RC_PATH}
+else
+    echo "An alias with the name \"${ALIAS}\" already exists! Aborting.."
 fi
-
-echo "$1=$2" >> ${rc_path}
