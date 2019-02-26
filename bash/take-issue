@@ -2,18 +2,23 @@
 # Requires jq.
 
 # Set up some default values for the script.
-
-# ISSUE_NUM: The reference number of this issue on the github issue tracker.
-ISSUE_NUM=${1}
+#
+# ISSUE_NUM:    The reference number of this issue on the github issue tracker.
+#
+# REMOTE_NAME:  The name the remote is registered under in the current project.
+#               Defaults to 'origin'.
+#
+# PROJECT:      The project's name, as determined by the current folder name. We
+#               expect you to be in the repository's root when running this script.
+#
+# USER:         The github user name you've configured for this repository.
+#               Defaults to the global configuration if there isn't a local one.
+ISSUE_NUM=0
 REMOTE_NAME="origin"
-
-# PROJECT: The project's name, as determined by the current folder name. We
-#          expect you to be in the repository's root when running this script.
 PROJECT=${PWD##*/}
-
-# USER: The github user name you've configured for this repository. Defaults to
-#       the global configuration if there isn't a local one.
 USER=$(git config user.name)
+ACCESS_TOKEN=0
+PASSWORD=0
 
 # Parse Command Line Flags
 PARAMS=""
@@ -37,7 +42,7 @@ while (( "$#" )) ; do
         USER=${2}
         ;;
     -p|--password)
-        PWD=${2}
+        PASSWORD=${2}
         shift # past argument
         ;;
     -a|--access-token)
@@ -68,23 +73,18 @@ done
 eval set -- "$PARAMS"
 
 
-
-
-# Sanitize input if necessary, stripping a prepended '#' symbol if present.
+# Simplistically sanitize input if necessary, stripping a prepended '#' symbol,
+# if present.
 function beginswith() { case $2 in "$1"*) true;; *) false;; esac; }
 
 if beginswith ${ISSUE_NUM} "#" ; then
     ISSUE_NUM=${ISSUE_NUM:1}
 fi
 
-function get_upstream() {
-    # Extract the upstream repository's name on github. Other hosting methods are
-    # currently not supported. The returned string is of format <owner>/<repo_name>
-    url=$(git config --get remote.${REMOTE_NAME}.url)
-    github_path=$(curl -s "https://api.github.com/repos/${USER}/${PROJECT}" | jq -r '.source.full_name')
-    echo ${github_path}
-}
-
+# Construct the URL to access the upstream's Issue tracker via the API. The output
+# of the 'curl' command is a string of format {OWNER}/{REPOSITORY}.
+url=$(git config --get remote.${REMOTE_NAME}.url)
+UPSTREAM_PATH=$(curl -s "https://api.github.com/repos/${USER}/${PROJECT}" | jq -r '.source.full_name')
 UPSTREAM=$(get_upstream)
 
 # Construct the base API V3 path to the issue.
@@ -92,18 +92,75 @@ UPSTREAM_API_URL="http://api.github.com/repos/${UPSTREAM}"
 
 
 echo "Assigning User ${USER} to issue #${ISSUE_NUM} via request PATCH ${UPSTREAM_API_URL}/issues/${ISSUE_NUM}..."
+
+# Figure out the authentication method. If an access token was passed, it always
+# takes predence over the password method.
+#
+# In addition to taking precedence over password authentication, the token is
+# also stored in a config file in the user's home directory under
+# '~/.config/${USER}.token'.
+#
+# If neither a password, nor a token was passed, we check for a config file in
+# the home directory of the executing user, which may hold an access token.
+#
+# Authentication is either done via basic auth (if a passwork was supplied), or
+# using an access token sent via a header. For further details, check the
+# Github API documentation.
+#
+# Documentation: https://developer.github.com/v3/#authentication
+function save_token_to_config(){
+    token=${2}
+    user=${1}
+    # Try creating a .config folder, just to be save.
+    mkdir ${HOME}/.config
+    echo "${token}" > ${HOME}/.config/${USER}.token
+}
+
+function load_token_from_config(){
+    user=${1}
+    token=$(`cat ${HOME}/.config/${USER}.token`)
+    if [[ $? == 1 ]]; then
+        echo $?
+    else
+        echo ${token}
+    fi
+}
+
+if [[ ${ACCESS_TOKEN} != 0 ]]; then
+    AUTH="-H \"Authorization: token ${ACCESS_TOKEN}\""
+    save_token_to_config ${USER} ${ACCESS_TOKEN}
+elif [[ ${PASSWORD} ]]; then
+    AUTH="-u ${USER}:${PASSWORD}"
+else
+    ACCESS_TOKEN=$(load_token_from_config ${USER})
+    if [[ ${ACCESS_TOKEN} == 1 ]]; then
+        echo "Could not load an access token from config, and no token or
+        password were supplied. Aborting!"
+        exit 1
+    fi
+    AUTH="-H \"Authorization: token ${ACCESS_TOKEN}\""
+fi
+
+# Send the PATCH request to the Github API (V3) via HTTP. The given issue is
+# assigned to ${USER}. Note that this *replaces* any other assignees.
+#
+# We check that the request was successful, using the HTTP response code. According
+# to the API documentation, this should be a 201.
+#
+# Documentation: https://developer.github.com/v3/issues/assignees/#add-assignees-to-an-issue
 STATUS_CODE=$(curl --request PATCH ${UPSTREAM_API_URL}/issues/${ISSUE_NUM} \
         -H "Content-Type: application/json" \
+        ${AUTH} \
         --data '{\"assignees\": [\"${USER}\"]}' \
         --write-out %{http_code} --silent --output /dev/null
         )
 
-if [[ ${STATUS_CODE} > 299 ]]; then
+if [[ ${STATUS_CODE} != 201 ]]; then
     echo "Could not assign issue #${ISSUE_NUM} to user '${USER}'! Aborting.."
     exit 1
+else
+    echo "Issue assigned successfully. Checking out branch 'issue-#${ISSUE_NUM}'.."
 fi
-
-echo "Issue assigned successfully. Checking out branch 'issue-#${ISSUE_NUM}'.."
 
 # Set up a new branch for this issue, if it does not exist already. We check this
 # by first trying to checkout the branch; if this operation fails, we assume it
