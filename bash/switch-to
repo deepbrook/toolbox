@@ -2,15 +2,34 @@
 # A simplistic shortcut tool for changing dirs.
 # Allows setting a root dir for your projects, and injects this on command invocation.
 # The path is stored in a file at ~/.config/switch-to.conf.
+#
+# ..note::
+#
+#   In order to use this from your terminal, you will have to source the script
+#   as follows::
+#
+#       $ . ./switch-to <project>
+#
+#   This is because shell scripts executed in a terminal are run via a subshell,
+#   And its changes to the CWD discarded upon their completion / exit.
+#
+#   For more on this see: https://unix.stackexchange.com/questions/27139/script-to-change-current-directory-cd-pwd
 
 function load_switch_to_config(){
-    devel_path=$(cat ${HOME}/.config/switch-to.conf)
-    if [[ $? == 1 ]]; then
+    config_path="${HOME}/.config/switch-to.conf"
+    if [[ ! -f ${config_path} ]]; then
         # File does not exist
-        read -p "Could not find a switch-to.conf file. Setting it up now. Please specify your projects' root dir [~/devel]:\n" devel_path
-        # store path in conf file (creating it if necessary)
-        mkdir ${HOME}/.config
-        cat >> ${HOME}/.config/switch-to.conf
+
+        read -p "Could not find a switch-to.conf file. Setting it up now. Please specify your projects' root dir [~/devel]:" devel_path
+        devel_path=${devel_path:-${HOME}/devel}
+
+        # store path in config folder (creating the folder if necessary)
+        if [ ! -d ${HOME}/.config ]; then
+            mkdir ${HOME}/.config
+        fi
+        echo "${devel_path}" >> ${config_path}
+    else
+        devel_path=$(head ${config_path} -n 1)
     fi
     echo ${devel_path}
 }
@@ -18,5 +37,7 @@ function load_switch_to_config(){
 DEVEL_PATH=$(load_switch_to_config)
 TARGET=${1}
 
+echo ${DEVEL_PATH}
 cd ${DEVEL_PATH}/${TARGET}
 
+return 0
