@@ -37,7 +37,6 @@ function load_switch_to_config(){
 DEVEL_PATH=$(load_switch_to_config)
 TARGET=${1}
 
-echo ${DEVEL_PATH}
 cd ${DEVEL_PATH}/${TARGET}
 
 return 0
