@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+branch_name=$(git symbolic-ref -q HEAD)
+branch_name=${branch_name##refs/heads/}
+current_branch_name=${branch_name:-HEAD}
+
+git checkout master;
+git pull --rebase origin
+git push fork
+echo "Fork update complete, checking out previous branch '${current_branch_name}'.."
+git checkout ${current_branch_name}
+
