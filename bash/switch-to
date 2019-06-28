@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A simplistic shortcut tool for changing dirs.
+# A simplistic shortcut tool for changing dirs and venvs.
 # Allows setting a root dir for your projects, and injects this on command invocation.
 # The path is stored in a file at ~/.config/switch-to.conf.
 #
@@ -38,5 +38,5 @@ DEVEL_PATH=$(load_switch_to_config)
 TARGET=${1}
 
 cd ${DEVEL_PATH}/${TARGET}
-
+workon ${TARGET}
 return 0
