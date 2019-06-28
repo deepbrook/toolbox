@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Applies linters to any committed .py files, and amends the commit to include any changes.
 for line in $(git show --name-only --format=%b); do
     if [[ ${file} == *.py ]]; then
