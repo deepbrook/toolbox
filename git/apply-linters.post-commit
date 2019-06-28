@@ -1,7 +1,7 @@
 #!/bin/sh
 # Applies linters to any committed .py files, and amends the commit to include any changes.
 for line in $(git show --name-only --format=%b); do
-    if [[ ${file} = *.py ]]; then
+    if [[ ${file} == *.py ]]; then
         black ${file}
         isort ${file}
         git commit --amend -C HEAD --no-verify ${file}
